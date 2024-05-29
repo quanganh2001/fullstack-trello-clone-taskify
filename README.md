@@ -829,3 +829,61 @@ export const MobileSidebar = () => {
   )
 }
 ```
+# Workspace Settings
+Add skeleton NavItem:
+```tsx
+import { Skeleton } from "@/components/ui/skeleton";
+
+NavItem.Skeleton = function SkeletonNavItem() {
+  return (
+    <div className="flex items-center gap-x-2">
+      <div className="w-10 h-10 relative shrink-0">
+        <Skeleton className="h-full w-full absolute" />
+      </div>
+      <Skeleton className="h-10 w-full" />
+    </div>
+  );
+};
+```
+Add three loading:
+```tsx
+<div className="flex items-center justify-between mb-2">
+  <Skeleton className="h-10 w-[50%]" />
+  <Skeleton className="h-10 w-10" />
+</div>
+<div className="space-y-2">
+  <NavItem.Skeleton />
+  <NavItem.Skeleton />
+  <NavItem.Skeleton />
+</div>
+```
+Add settings page: Go to [organizationId]/settings/page.tsx, remove box shadow, width 100%
+```tsx
+import { OrganizationProfile } from "@clerk/nextjs";
+
+const SettingsPage = () => {
+  return (
+    <div className="w-full">
+      <OrganizationProfile
+        appearance={{
+          elements: {
+            rootBox: {
+              boxShadow: "none",
+              width: "100%"
+            },
+            card: {
+              border: "1px solid #e5e5e5",
+              boxShadow: "none",
+              width: "100%"
+            }
+          }
+        }}
+      />
+    </div>
+  );
+};
+
+export default SettingsPage;
+```
+
+[![image.png](https://i.postimg.cc/c44wmsH0/image.png)](https://postimg.cc/rz3Dy2xP)
