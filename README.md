@@ -887,3 +887,237 @@ export default SettingsPage;
 ```
 
 [![image.png](https://i.postimg.cc/c44wmsH0/image.png)](https://postimg.cc/rz3Dy2xP)
+# Server Actions
+Install prisma: `npm i -D prisma`
+
+Initial prisma: `npx prisma init`
+
+We will use Neon tech to create postgresSQL, create account then create database: `trello-tutorial`
+
+Create initial schema:
+```prisma
+// prisma/schema.prisma
+datasource db {
+  provider  = "postgresql"
+  url  	    = env("DATABASE_URL")
+  // uncomment next line if you use Prisma <5.10
+  // directUrl = env("DATABASE_URL_UNPOOLED")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Board {
+  id String @id @default(uuid())
+
+  title String
+}
+```
+
+- Type generate: `npx prisma generate`
+- Push database: `npx prisma db push`
+
+Install prisma client: `npm i @prisma/client`
+
+In the lib folder, create db.ts and declare global
+```ts
+import { PrismaClient } from "@prisma/client";
+
+declare global {
+  var prisma: PrismaClient | undefined;
+};
+
+export const db = new PrismaClient();
+
+if (process.env.NODE_ENV !== "production") globalThis.prisma = db;
+```
+Create input text:
+```tsx
+import { db } from "@/lib/db";
+
+const OrganizationIdPage = () => {
+  async function create(formData: FormData) {
+    "use server";
+
+    const title = formData.get("title") as string;
+
+    await db.board.create({
+      data: {
+        title,
+      }
+    });
+  }
+
+  return (
+    <div>
+      <form action={create}>
+        <input
+          id="title"
+          name="title"
+          required
+          placeholder="Enter a board title"
+          className="border-black border p-1"
+        />
+      </form>
+    </div>
+  );
+};
+```
+Now let's type `npx prisma studio`, it will be redirect to `localhost:5555`, type test and press enter
+
+[![image.png](https://i.postimg.cc/tJCTb4Z5/image.png)](https://postimg.cc/8J9DBDbJ)
+
+Install zod: `npm i zod`, create actions folder -> `create-board.ts`
+
+Import these packages:
+```tsx
+"use server";
+
+import { z } from "zod";
+
+import { db } from "@/lib/db";
+import { revalidatePath } from "next/cache";
+
+const CreateBoard = z.object({
+  title: z.string(),
+});
+
+export async function create(formData: FormData) {
+  const { title } = CreateBoard.parse({
+    title: formData.get("title"),
+  });
+
+  await db.board.create({
+    data: {
+      title,
+    }
+  });
+
+  revalidatePath("/organization/org_2fPDxjUvciNnN8KvLmvqzMKeCrF");
+}
+```
+Set title and button:
+```tsx
+import { create } from "@/actions/create-board";
+import { Button } from "@/components/ui/button";
+import { db } from "@/lib/db";
+import { Board } from "./board";
+
+const OrganizationIdPage = async () => {
+  const boards = await db.board.findMany();
+
+  return (
+    <div className="flex flex-col space-y-4">
+      <form action={create}>
+        <input
+          id="title"
+          name="title"
+          required
+          placeholder="Enter a board title"
+          className="border-black border p-1"
+        />
+        <Button type="submit">
+          Submit
+        </Button>
+      </form>
+      <div className="space-y-2">
+        {boards.map((board) => (
+          <Board key={board.id} title={board.title} id={board.id} />
+        ))}
+      </div>
+    </div>
+  );
+};
+```
+Let's go to add interface and delete button
+```tsx
+import { Button } from "@/components/ui/button";
+
+interface BoardProps {
+  title: string;
+  id: string;
+}
+
+export const Board = ({
+  title,
+  id
+}: BoardProps) => {
+  return (
+    <form className="flex items-center gap-x-2">
+      <p>
+        Board title: {title}
+      </p>
+      <Button type="submit" variant="destructive" size="sm">
+        Delete
+      </Button>
+    </form>
+  )
+}
+```
+Add delete action: **actions/delete-board.ts**
+```ts
+"use server";
+
+import { db } from "@/lib/db";
+import { revalidatePath } from "next/cache";
+
+export async function deleteBoard(id: string) {
+  await db.board.delete({
+    where: {
+      id
+    }
+  });
+
+  revalidatePath("/organization/org_2fPDxjUvciNnN8KvLmvqzMKeCrF");
+}
+```
+Add message required letters:`
+```ts
+import { db } from "@/lib/db";
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+
+export type State = {
+  errors?: {
+    title?: string[];
+  },
+  message?: string | null;
+}
+
+const CreateBoard = z.object({
+  title: z.string().min(3, {
+    message: "Minimum length of 3 letters is required"
+  })
+});
+
+export async function create(prevState:State, formData: FormData) {
+  const validatedFields = CreateBoard.safeParse({
+    title: formData.get("title"),
+  });
+
+  if (!validatedFields.success) {
+    return {
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: "Missing fields."
+    }
+  }
+
+  const { title } = validatedFields.data;
+
+  try {
+    await db.board.create({
+      data: {
+        title,
+      }
+    });
+  } catch(error) {
+    return {
+      message: "Database Error",
+    }
+  }
+
+  revalidatePath("/organization/org_2fPDxjUvciNnN8KvLmvqzMKeCrF");
+  redirect("/organization/org_2fPDxjUvciNnN8KvLmvqzMKeCrF");
+}
+```
