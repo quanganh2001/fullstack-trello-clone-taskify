@@ -1395,3 +1395,171 @@ const handler = async (data: InputType): Promise<ReturnType> => {
 
 export const createBoard = createSafeAction(CreateBoard, handler);
 ```
+# Form Components
+Add label: `npx shadcn-ui@latest add label`
+## Add error label
+**components/form/form-input.tsx**
+
+```tsx
+"use client";
+
+import { forwardRef } from "react";
+import { useFormStatus } from "react-dom";
+
+import { cn } from "@/lib/utils";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+
+import { FormErrors } from "./form-errors";
+
+interface FormInputProps {
+  id: string;
+  label?: string;
+  type?: string;
+  placeholder?: string;
+  required?: boolean;
+  disabled?: boolean;
+  errors?: Record<string, string[] | undefined>;
+  className?: string;
+  defaultValue?: string;
+  onBlur?: () => void;
+}
+
+export const FormInput = forwardRef<HTMLInputElement, FormInputProps>(({
+  id,
+  label,
+  type,
+  placeholder,
+  required,
+  disabled,
+  errors,
+  className,
+  defaultValue = "",
+  onBlur
+}, ref) => {
+  const { pending } = useFormStatus();
+
+  return (
+    <div className="space-y-2">
+      <div className="space-y-1">
+        {label ? (
+          <Label
+            htmlFor={id}
+            className="text-xs font-semibold text-neutral-700"
+          >
+            {label}
+          </Label>
+        ) : null}
+        <Input
+          onBlur={onBlur}
+          defaultValue={defaultValue}
+          ref={ref}
+          required={required}
+          name={id}
+          id={id}
+          placeholder={placeholder}
+          type={type}
+          disabled={pending|| disabled}
+          className={cn(
+            "text-sm px-2 py-1 h-7",
+            className,
+          )}
+          aria-describedby={`${id}-error`}
+        />
+      </div>
+      <FormErrors
+        id={id}
+        errors={errors}
+      />
+    </div>
+  )
+});
+
+FormInput.displayName = "FormInput";
+```
+## Add circle error icon
+We will use XCircle:
+
+**components/form/form-errors.tsx**
+```tsx
+import { XCircle } from "lucide-react";
+
+interface FormErrorsProps {
+  id: string;
+  errors?: Record<string, string[] | undefined>;
+};
+
+export const FormErrors = ({
+  id,
+  errors
+}: FormErrorsProps) => {
+  if (!errors) {
+    return null;
+  }
+
+  return (
+    <div
+      id={`${id}-error`}
+      aria-live="polite"
+      className="mt-2 text-xs text-rose-500"
+    >
+      {errors?.[id]?.map((error: string) => (
+        <div 
+          key={error}
+          className="flex items-center font-medium p-2 border border-rose-500 bg-rose-500/10 rounded-sm"
+        >
+          <XCircle className="h-4 w-4 mr-2" />
+          {error}
+        </div>
+      ))}
+    </div>
+  )
+}
+```
+## Form Submit
+
+**components/form/form-submit.tsx**
+```tsx
+"use client";
+
+import { useFormStatus } from "react-dom";
+
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+
+interface FormSubmitProps {
+  children: React.ReactNode;
+  disabled?: boolean;
+  className?: string;
+  variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link" | "primary";
+};
+
+export const FormSubmit = ({
+  children,
+  disabled,
+  className,
+  variant
+}: FormSubmitProps) => {
+  const { pending } = useFormStatus();
+
+  return (
+    <Button
+      disabled={pending || disabled}
+      type="submit"
+      variant={variant}
+      size="sm"
+      className={cn(className)}
+    >
+      {children}
+    </Button>
+  )
+}
+```
+Save button:
+```tsx
+<FormSubmit>
+  Save
+</FormSubmit>
+```
+
+[![image.png](https://i.postimg.cc/pX9nsbB3/image.png)](https://postimg.cc/dLY10fp9)
