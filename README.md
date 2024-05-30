@@ -1121,3 +1121,95 @@ export async function create(prevState:State, formData: FormData) {
   redirect("/organization/org_2fPDxjUvciNnN8KvLmvqzMKeCrF");
 }
 ```
+## Form Input
+```tsx
+"use client";
+
+import { Input } from "@/components/ui/input";
+import { useFormStatus } from "react-dom";
+
+interface FormInputProps {
+  errors?: {
+    title?: string[];
+  }
+}
+
+export const FormInput = ({ errors }: FormInputProps) => {
+  const { pending } = useFormStatus();
+
+  return (
+    <div>
+      <Input
+        id="title"
+        name="title"
+        required
+        placeholder="Enter a board title"
+      disabled={pending}
+      />
+      {errors?.title ? (
+        <div>
+          {errors.title.map((error: string) => (
+            <p key={error} className="text-rose-500">
+              {error}
+            </p>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+};
+```
+## Form Button
+```tsx
+import { Button } from "@/components/ui/button"
+import { useFormStatus } from "react-dom"
+
+export const FormButton = () => {
+  const { pending } = useFormStatus();
+
+  return (
+    <Button disabled={pending} type="submit">
+      Submit
+    </Button>
+  )
+}
+```
+## Form Delete
+```tsx
+import { Button } from "@/components/ui/button"
+import { useFormStatus } from "react-dom"
+
+export const FormButton = () => {
+  const { pending } = useFormStatus();
+
+  return (
+    <Button disabled={pending} type="submit">
+      Submit
+    </Button>
+  )
+}
+```
+## Form Components
+```tsx
+"use client";
+
+import { create } from "@/actions/create-board";
+import { Button } from "@/components/ui/button";
+import { useFormState } from "react-dom";
+import { FormInput } from "./form-input";
+import { FormButton } from "./form-button";
+
+export const Form = () => {
+  const initialState = { message: null, errors: {} };
+  const [state, dispatch] = useFormState(create, initialState);
+
+  return (
+    <form action={dispatch}>
+      <div className="flex flex-col space-y-2">
+        <FormInput errors={state?.errors} />
+      </div>
+      <FormButton />
+    </form>
+  )
+}
+```
