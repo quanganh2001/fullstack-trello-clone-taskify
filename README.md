@@ -1213,7 +1213,7 @@ export const Form = () => {
   )
 }
 ```
-# useActions abstractions
+# useAction abstractions
 ## Create safe actions library
 ```ts
 import { z } from "zod";
