@@ -1213,3 +1213,185 @@ export const Form = () => {
   )
 }
 ```
+# useActions abstractions
+## Create safe actions library
+```ts
+import { z } from "zod";
+
+export type FieldErrors<T> = {
+  [K in keyof T]?: string[];
+};
+
+export type ActionState<TInput, TOutput> = {
+  fieldErrors?: FieldErrors<TInput>;
+  error?: string | null;
+  data?:TOutput;
+};
+
+export const createSafeAction = <TInput, TOutput>(
+  schema: z.Schema<TInput>,
+  handler: (validateData: TInput) => Promise<ActionState<TInput, TOutput>>
+) => {
+  return async (data: TInput): Promise<ActionState<TInput, TOutput>> => {
+    const validationResult = schema.safeParse(data);
+    if (!validationResult.success) {
+      return {
+        fieldErrors: validationResult.error.flatten().fieldErrors as FieldErrors<TInput>,
+      };
+    }
+
+    return handler(validationResult.data);
+  }
+}
+```
+## Set title required action
+
+**actions/create-board/schema.ts**
+```ts
+import { z } from "zod";
+
+export const CreateBoard = z.object({
+  title: z.string({
+    required_error: "Title is required",
+    invalid_type_error: "Title is required",
+  }).min(3, {
+    message: "Title is too short."
+  }),
+});
+```
+## Add types actions
+
+**actions/create-board/types.ts**
+```ts
+import { z } from "zod";
+import { Board } from "@prisma/client";
+
+import { ActionState } from "@/lib/create-safe-action";
+
+import { CreateBoard } from "./schema";
+
+export type InputType = z.infer<typeof CreateBoard>;
+export type ReturnType = ActionState<InputType, Board>;
+```
+**useAction state**
+```ts
+import { useState, useCallback } from "react";
+
+import { ActionState, FieldErrors } from "@/lib/create-safe-action";
+
+type Action<TInput, TOutput> = (data: TInput) => Promise<ActionState<TInput, TOutput>>;
+
+interface UseActionOptions<TOutput> {
+  onSuccess?: (data: TOutput) => void;
+  onError?: (error: string) => void;
+  onComplete?: () => void;
+};
+
+export const useAction = <TInput, TOutput> (
+  action: Action<TInput, TOutput>,
+  options: UseActionOptions<TOutput> = {}
+) => {
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors<TInput> | undefined>(
+    undefined
+  );
+  const [error, setError] = useState<string | undefined>(undefined);
+  const [data, setData] = useState<TOutput | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  const execute = useCallback(
+    async (input: TInput) => {
+      setIsLoading(true);
+
+      try {
+        const result = await action(input);
+
+        if (!result) {
+          return;
+        }
+
+        if (result.fieldErrors) {
+          setFieldErrors(result.fieldErrors);
+        }
+
+        if (result.error) {
+          setError(result.error);
+          options.onError?.(result.error);
+        }
+
+        if (result.data) {
+          setData(result.data);
+          options.onSuccess?.(result.data);
+        }
+      } finally {
+        setIsLoading(false);
+        options.onComplete?.();
+      }
+    },
+    [action, options]
+  );
+
+  return {
+    execute,
+    fieldErrors,
+    error,
+    data,
+    isLoading
+  };
+};
+```
+## Check error and success
+```tsx
+const { execute, fieldErrors } = useAction(createBoard, {
+  onSuccess: (data) => {
+    console.log(data, "SUCCESS!");
+  },
+  onError: (error) => {
+    console.error(error);
+  },
+});
+```
+throw new error:
+```ts
+"use server";
+
+import { auth } from "@clerk/nextjs";
+import { revalidatePath } from "next/cache";
+
+import { db } from "@/lib/db";
+import { createSafeAction } from "@/lib/create-safe-action";
+
+import { InputType, ReturnType } from "./types";
+import { CreateBoard } from "./schema";
+
+const handler = async (data: InputType): Promise<ReturnType> => {
+  const { userId } = auth();
+
+  if (!userId) {
+    return {
+      error: "Unauthorized",
+    };
+  }
+
+  const { title } = data;
+
+  let board;
+
+  try {
+    throw new Error("balbala");
+    board = await db.board.create({
+      data: {
+        title,
+      }
+    });
+  } catch (error) {
+    return {
+      error: "Failed to create."
+    }
+  }
+
+  revalidatePath(`/board/${board.id}`);
+  return { data: board };
+};
+
+export const createBoard = createSafeAction(CreateBoard, handler);
+```
