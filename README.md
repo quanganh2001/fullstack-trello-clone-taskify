@@ -1564,10 +1564,133 @@ Save button:
 
 [![image.png](https://i.postimg.cc/pX9nsbB3/image.png)](https://postimg.cc/dLY10fp9)
 # Board Popover Form
-## Tooltip component
-Type: `npx shadcn-ui@latest add tooltip`
-## Popover component
-Type: `npx shadcn-ui@latest add popover`
+## Info label
+Let's go to add info label with organization image cover, name organization and credit card icon:
+```tsx
+<div className="flex items-center gap-x-4">
+  <div className="w-[60px] h-[60px] relative">
+    <Image
+      fill
+      src={organization?.imageUrl!}
+      alt="Organization"
+      className="rounded-md object-cover"
+    />
+  </div>
+  <div className="space-y-1">
+    <p className="font-semibold text-xl">
+      {organization?.name}
+    </p>
+    <div className="flex items-center text-xs text-muted-foreground">
+      <CreditCard className="h-3 w-3 mr-1" />
+      Free
+    </div>
+  </div>
+</div>
+```
+Add info loading:
+```tsx
+Info.Skeleton = function SkeletonInfo() {
+  return (
+    <div className="flex items-center gap-x-4">
+      <div className="w-[60px] h-[60px] relative">
+        <Skeleton className="w-full h-full absolute" />
+      </div>
+      <div className="space-y-2">
+        <Skeleton className="h-10 w-[200px]" />
+        <div className="flex items-center">
+          <Skeleton className="h-4 w-4 mr-2" />
+          <Skeleton className="h-4 w-[100px]" />
+        </div>
+      </div>
+    </div>
+  )
+}
+```
+## Board List
+- Type: `npx shadcn-ui@latest add tooltip`
+- Type: `npx shadcn-ui@latest add popover`
+Hint components:
+```tsx
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from "@/components/ui/tooltip";
+
+interface HintProps {
+  children: React.ReactNode;
+  description: string;
+  side?: "left" | "right" | "top" | "bottom";
+  sideOffset?: number;
+};
+
+export const Hint = ({
+  children,
+  description,
+  side = "bottom",
+  sideOffset = 0
+}: HintProps) => {
+  return (
+    <TooltipProvider>
+      <Tooltip delayDuration={0}>
+        <TooltipTrigger>
+          {children}
+        </TooltipTrigger>
+        <TooltipContent
+          sideOffset={sideOffset}
+          side={side}
+          className="text-xs max-w-[220px] break-words"
+        >
+          {description}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+```
+
+Let's go to add Board List with `popover` components, get hint and help circle icon
+```tsx
+import { HelpCircle, User2 } from "lucide-react";
+
+import { Hint } from "@/components/hint";
+import { FormPopover } from "@/components/form/form-popover";
+
+export const BoardList = () => {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center font-semibold text-lg text-neutral-700">
+        <User2 className="h-6 w-6 mr-2" />
+        Your boards
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        <FormPopover sideOffset={10} side="right">
+          <div
+            role="button"
+            className="aspect-video relative h-full w-full bg-muted rounded-sm flex flex-col gap-y-1 items-center justify-center hover:opacity-75 transition"
+          >
+            <p className="text-sm">Create new board</p>
+            <span className="text-xs">
+              5 remaining
+            </span>
+            <Hint
+              sideOffset={40}
+              description={`
+                Free Workspaces can have up to 5 open boards. For unlimited boards upgrade this workspace.
+              `}
+            >
+              <HelpCircle
+                className="absolute bottom-2 right-2 h-[14px] w-[14px]"
+              />
+            </Hint>
+          </div>
+        </FormPopover>
+      </div>
+    </div>
+  )
+}
+```
 ## Add popover close
 Edit popover.tsx
 ```tsx
@@ -1586,6 +1709,22 @@ Add X button from "lucid-react":
   </Button>
 </PopoverClose>
 ```
+Create button with text input:
+```tsx
+<form action={onSubmit} className="space-y-4">
+  <div className="space-y-4">
+    <FormInput
+      id="title"
+      label="Board title"
+      type="text"
+      errors={fieldErrors}
+    />
+  </div>
+  <FormSubmit className="w-full">
+    Create
+  </FormSubmit>
+</form>
+```
 ## Add Form Input
 ```tsx
 <form className="space-y-4">
@@ -1602,3 +1741,19 @@ Add X button from "lucid-react":
 </FormSubmit>
 ```
 Type `npm i sonner`
+
+Add toast message
+```tsx
+const { execute, fieldErrors } = useAction(createBoard, {
+  onSuccess: (data) => {
+    console.log({ data });
+    toast.success("Board created!");
+  },
+  onError: (error) => {
+    console.log({ error });
+    toast.error(error);
+  }
+});
+```
+
+[![image.png](https://i.postimg.cc/J084FZws/image.png)](https://postimg.cc/TLk6Ly3x)
