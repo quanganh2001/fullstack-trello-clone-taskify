@@ -1563,3 +1563,42 @@ Save button:
 ```
 
 [![image.png](https://i.postimg.cc/pX9nsbB3/image.png)](https://postimg.cc/dLY10fp9)
+# Board Popover Form
+## Tooltip component
+Type: `npx shadcn-ui@latest add tooltip`
+## Popover component
+Type: `npx shadcn-ui@latest add popover`
+## Add popover close
+Edit popover.tsx
+```tsx
+const PopoverClose = PopoverPrimitive.Close
+
+export { Popover, PopoverTrigger, PopoverContent, PopoverClose }
+```
+Add X button from "lucid-react":
+```tsx
+<PopoverClose asChild>
+  <Button
+    className="h-auto w-auto p-2 absolute top-2 right-2 text-neutral-600"
+    variant="ghost"
+  >
+    <X className="h-4 w-4" />
+  </Button>
+</PopoverClose>
+```
+## Add Form Input
+```tsx
+<form className="space-y-4">
+  <div className="space-y-4">
+    <FormInput
+      id="title"
+      label="Board title"
+      type="text"
+    />
+  </div>
+</form>
+<FormSubmit className="w-full">
+  Create
+</FormSubmit>
+```
+Type `npm i sonner`
