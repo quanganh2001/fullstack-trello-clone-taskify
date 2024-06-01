@@ -1901,3 +1901,125 @@ console.log(error);
 setImages(defaultImages);
 ```
 ## Add error components
+Import check icon from `lucide-react`:
+```tsx
+import { Check, Loader2 } from "lucide-react";
+```
+
+Add alt unsplash image, hyperlink for unsplash username
+```tsx
+<input
+  type="radio"
+  id={id}
+  name={id}
+  className="hidden"
+  checked={selectedImageId === image.id}
+  disabled={pending}
+  value={`${image.id}|${image.urls.thumb}|${image.urls.full}|${image.links.html}|${image.user.name}`}
+/>
+<Image
+  src={image.urls.thumb}
+  alt="Unsplash image"
+  className="object-cover rounded-sm"
+  fill
+/>
+{selectedImageId === image.id && (
+  <div className="absolute inset-y-0 h-full w-full bg-black/30 flex items-center justify-center">
+    <Check className="h-4 w-4 text-white" />
+  </div>
+)}
+<Link
+  href={image.links.html}
+  target="_blank"
+  className="opacity-0 group-hover:opacity-100 absolute bottom-0 w-full text-[10px] truncate text-white hover:underline p-1 bg-black/10"
+>
+  {image.user.name}
+</Link>
+```
+
+[![image.png](https://i.postimg.cc/rwB1d3m2/image.png)](https://postimg.cc/SnG23ZCg)
+## Update databases
+```prisma
+model Board {
+  id                String @id @default(uuid())
+  orgId             String
+  title             String
+  imageId           String
+  imageThumbUrl     String @db.Text
+  imageFullUrl      String @db.Text
+  imageUserName     String @db.Text
+  imageLinkHTML     String @db.Text
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+```
+- Reset databases: `npx prisma migrate reset`
+- Re-push databases: `npx prisma db push`
+## Schema actions
+Add error alert images:
+
+**fullstack-trello-clone/actions/create-board/schema.ts**
+```ts
+image: z.string({
+  required_error: "Image is required",
+  invalid_type_error: "Image is required",
+}),
+```
+Add required image informations:
+
+**actions/create-board/index.ts**
+```ts
+const { title, image } = data;
+
+const [
+  imageId,
+  imageThumbUrl,
+  imageFullUrl,
+  imageLinkHTML,
+  imageUserName
+] = image.split("|");
+
+if (!imageId || !imageThumbUrl || !imageFullUrl || !imageUserName || !imageLinkHTML) {
+  return {
+    error: "Missing fields. Failed to create board."
+  };
+}
+```
+Change button to blue: `variant = "primary"`
+## Popover action
+Add this code when board was created, create board was closed and push id data.
+
+**components/form/form-popover.tsx**
+```tsx
+const router = useRouter();
+const closeRef = useRef<ElementRef<"button">>(null);
+
+const { execute, fieldErrors } = useAction(createBoard, {
+  onSuccess: (data) => {
+    toast.success("Board created!");
+    closeRef.current?.click();
+    router.push(`/board/${data.id}`);
+  },
+  onError: (error) => {
+    toast.error(error);
+  }
+});
+```
+Let's go to wrap popover create button for desktop and mobile:
+
+**navbar.tsx**
+```tsx
+<FormPopover>
+  <Button variant="primary" size="sm" className="rounded-sm hidden md:block h-auto py-1.5 px-2">
+    Create
+  </Button>
+</FormPopover>
+<FormPopover>
+  <Button variant="primary" size="sm" className="rounded-sm block md:hidden">
+    <Plus className="h-4 w-4" />
+  </Button>
+</FormPopover>
+```
+
+[![image.png](https://i.postimg.cc/XYjPXZr0/image.png)](https://postimg.cc/svLmNgPn)
