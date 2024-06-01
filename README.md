@@ -1757,3 +1757,146 @@ const { execute, fieldErrors } = useAction(createBoard, {
 ```
 
 [![image.png](https://i.postimg.cc/J084FZws/image.png)](https://postimg.cc/TLk6Ly3x)
+# Board Server Action
+## Unsplash API
+We will use Unsplash API, register account then go to Your apps -> create new application and copy your access key with format:
+```env
+NEXT_PUBLIC_UNSPLASH_ACCESS_KEY=
+```
+Let's go to fetch access key:
+```tsx
+import { createApi } from 'unsplash-js';
+
+export const unsplash = createApi({
+  accessKey: process.env.NEXT_PUBLIC_UNSPLASH_ACCESS_KEY!,
+  fetch: fetch,
+});
+```
+## Form Picker
+```tsx
+"use client";
+
+interface FormPickerProps {
+  id: string;
+  errors?: Record<string, string[] | undefined>;
+};
+
+export const FormPicker = ({
+  id,
+  errors,
+}: FormPickerProps) => {
+  return (
+    <div>
+      Form Picker!
+    </div>
+  );
+};
+```
+Import Form Picker:
+```tsx
+<FormPicker
+  id="image"
+  errors={fieldErrors}
+/>
+```
+Add interface:
+```tsx
+interface FormPickerProps {
+  id: string;
+  errors?: Record<string, string[] | undefined>;
+};
+```
+We will set images, loading and `selectedImageId` states, set pending:
+```tsx
+const { pending } = useFormStatus();
+
+const [images, setImages] = useState<Array<Record<string, any>>>([]);
+const [isLoading, setIsLoading] = useState(true);
+const [selectedImageId, setSelectedImageId] = useState(null);
+```
+We will use `useEffect` to fetch images, get random images, set count is 9 (3 rows x 3 columns), finally set is loading is false (mean completed)
+```tsx
+useEffect(() => {
+  const fetchImages = async () => {
+    try {
+      const result = await unsplash.photos.getRandom({
+        collectionIds: ["317099"],
+        count: 9,
+      });
+
+      if (result && result.response) {
+        const newImages = (result.response as Array<Record<string, any>>);
+        setImages(newImages);
+      } else {
+        console.error("Failed to get images from Unsplash");
+      }
+    } catch (error) {
+      console.log(error);
+      setImages([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  fetchImages();
+}, []);
+```
+If is loading, add `Loader2` from `lucide-react`
+```tsx
+if (isLoading) {
+  return (
+    <div className="p-6 flex items-center justify-center">
+      <Loader2 className="h-6 w-6 text-sky-700 animate-spin" />
+    </div>
+  );
+}
+```
+Add protocol unsplash images:
+```mjs
+{
+  protocol: "https",
+  hostname: "images.unsplash.com",
+},
+```
+Import Form Picker from Form popover then return
+```
+return (
+  <div className="relateive">
+    <div className="grid grid-cols-3 gap-2 mb-2">
+      {images.map((image) => (
+        <div
+        key={image.id}
+          className={cn(
+            "cursor-pointer relative aspect-video group hover:opacity-75 transition bg-muted",
+            pending && "opacity-50 hover:opacity-50 cursor-auto"
+          )}
+          onClick={() => {
+            if (pending) return;
+            setSelectedImageId(image.id);
+          }}
+        >
+          <Image
+            src={image.urls.thumb}
+            alt="Unsplash image"
+            className="object-cover rounded-sm"
+            fill
+          />
+        </div>
+      ))}
+    </div>
+  </div>
+);
+```
+[![image.png](https://i.postimg.cc/R0HMpJyt/image.png)](https://postimg.cc/2qCRVyzj)
+
+As you can see, each times when click to create new board, the request images was reduce, let's go to add constants folder, create images.ts. F12, Open Network tab then copy json in the response tab
+
+[![image.png](https://i.postimg.cc/FRCDf1FP/image.png)](https://postimg.cc/dkd8psyd)
+
+Import images constants from form picker`
+```tsx
+const [images, setImages] = useState<Array<Record<string, any>>>(defaultImages);
+
+console.log(error);
+setImages(defaultImages);
+```
