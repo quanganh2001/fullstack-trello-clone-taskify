@@ -1900,3 +1900,4 @@ const [images, setImages] = useState<Array<Record<string, any>>>(defaultImages);
 console.log(error);
 setImages(defaultImages);
 ```
+## Add error components

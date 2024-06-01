@@ -1,13 +1,16 @@
 "use client";
 
+import Link from "next/link";
 import Image from "next/image";
-import { Loader2 } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 import { useFormStatus } from "react-dom";
 import { useEffect, useState } from "react";
 
 import { cn } from "@/lib/utils";
 import { unsplash } from "@/lib/unsplash";
 import { defaultImages } from "@/constants/images";
+
+import { FormErrors } from "./form-errors";
 
 interface FormPickerProps {
   id: string;
@@ -57,7 +60,6 @@ export const FormPicker = ({
     );
   }
   
-
   return (
     <div className="relateive">
       <div className="grid grid-cols-3 gap-2 mb-2">
@@ -73,15 +75,39 @@ export const FormPicker = ({
               setSelectedImageId(image.id);
             }}
           >
+            <input
+              type="radio"
+              id={id}
+              name={id}
+              className="hidden"
+              checked={selectedImageId === image.id}
+              disabled={pending}
+            />
             <Image
               src={image.urls.thumb}
               alt="Unsplash image"
               className="object-cover rounded-sm"
               fill
             />
+            {selectedImageId === image.id && (
+              <div className="absolute inset-y-0 h-full w-full bg-black/30 flex items-center justify-center">
+                <Check className="h-4 w-4 text-white" />
+              </div>
+            )}
+            <Link
+              href={image.links.html}
+              target="_blank"
+              className="opacity-0 group-hover:opacity-100 absolute bottom-0 w-full text-[10px] truncate text-white hover:underline p-1 bg-black/10"
+            >
+              {image.user.name}
+            </Link>
           </div>
         ))}
       </div>
+      <FormErrors
+        id="image"
+        errors={errors}
+      />
     </div>
   );
 };
