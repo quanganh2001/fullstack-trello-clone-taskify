@@ -2452,3 +2452,78 @@ export const BoardOptions = ({ id }: BoardOptionsProps) => {
 ```
 
 [![image.png](https://i.postimg.cc/FKvLbTWJ/image.png)](https://postimg.cc/NKNFBkwg)
+# List Component
+Update schemas:
+```prisma
+model Board {
+  lists             List[]
+}
+
+model List {
+  id                String @id @default(uuid())
+  title             String
+  order             Int
+
+  boardId           String
+  board             Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  cards             Card[]
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([boardId])
+}
+
+model Card {
+  index             String @id @default(uuid())
+  title             String
+  order             Int
+  description       String? @db.Text
+
+  listId            String
+  list              List @relation(fields: [listId], references: [id], onDelete: Cascade)
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([listId])
+}
+```
+Type: `npx prisma migrate reset`, `npx prisma db push`, `npx prisma generate`
+
+Add interface with param `boardId`:
+```tsx
+interface BoardIdPageProps {
+  params: {
+    boardId: string;
+  };
+};
+```
+async params, add auth `orgId`, if not, redirect `organizationId`. Add `await db` to find many where `boardId` and `board`, include cards order by ascending and descending.
+```tsx
+const { orgId } = auth();
+
+if (!orgId) {
+  redirect("/select-org");
+}
+
+const lists = await db.list.findMany({
+  where: {
+    boardId: params.boardId,
+    board: {
+      orgId,
+    },
+  },
+  include: {
+    cards: {
+      orderBy: {
+        order: "asc",
+      },
+    },
+  },
+  orderBy: {
+    order: "asc",
+  },
+});
+```
