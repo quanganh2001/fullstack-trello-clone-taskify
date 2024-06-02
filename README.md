@@ -2085,3 +2085,370 @@ Add Suspense from react with fallback `BoardList` Skeleton:
   <BoardList />
 </Suspense>
 ```
+
+[![image.png](https://i.postimg.cc/W32dvCL6/image.png)](https://postimg.cc/CZQhCvKz)
+# Board Page
+- Install: `npm i lodash`, `npm i -D @types/lodash`
+
+Render title generate metadata in the tab browser:
+```tsx
+import { startCase } from "lodash";
+import { auth } from "@clerk/nextjs";
+
+export async function generateMetadata() {
+  const { orgSlug } = auth();
+
+  return {
+    title: startCase(orgSlug || "organization"),
+  }
+}
+```
+
+[![image.png](https://i.postimg.cc/02qXYCvR/image.png)](https://postimg.cc/F1Dxm31D)
+
+## Create Board Layout
+Render unsplash image:
+```tsx
+<div
+  className="relative h-full bg-no-repeat bg-cover bg-center"
+  style={{ backgroundImage: `url(${board.imageFullUrl})` }}
+>
+  <main className="relative pt-28 h-full">
+    {children}
+  </main>
+</div>
+```
+## Fetch the board
+Let's go to render the title board:
+```tsx
+export async function generateMetadata({
+  params
+}: {
+  params: { boardId: string; };
+}) {
+  const { orgId } = auth();
+
+  if (!orgId) {
+    return {
+      title: "Board",
+    };
+  }
+
+  const board = await db.board.findUnique({
+    where: {
+      id: params.boardId,
+      orgId
+    }
+  });
+
+  return {
+    title: board?.title || "Board"
+  }
+}
+```
+
+[![image.png](https://i.postimg.cc/Wbr21Vmm/image.png)](https://postimg.cc/xcfr6W4q)
+
+## Create navigation
+Let's go to create component: `BoardNavbar`
+
+Define props with data:
+```tsx
+import { Board } from "@prisma/client";
+
+interface BoardNavbarProps {
+  data: Board;
+}
+```
+
+**_components/board-navbar.tsx**
+```tsx
+export const BoardNavbar = async ({
+  data
+}: BoardNavbarProps) => {
+  return (
+    <div className="w-full h-14 z-[40] bg-black/50 fixed top-14 flex items-center px-6 gap-x-4 text-white">
+      Board Navbar!
+    </div>
+  );
+};
+
+```
+This code will be render title navbar board.
+
+[![image.png](https://i.postimg.cc/Wp59qq8T/image.png)](https://postimg.cc/LhZkrXGb)
+## Board title form
+Render title board:
+
+**_components/board-title-form.tsx**
+```tsx
+"use client";
+
+import { Board } from "@prisma/client";
+
+import { Button } from "@/components/ui/button";
+
+interface BoardTitleFormProps {
+  data: Board;
+};
+
+export const BoardTitleForm = ({
+  data,
+}: BoardTitleFormProps) => {
+  return (
+    <Button
+      className="font-bold text-lg h-auto w-auto p-1 px-2"
+    >
+      {data.title}
+    </Button>
+  );
+};
+
+```
+Render pass data: `<BoardTitleForm data={data} />`
+
+Add variant button: `transparent: "bg-transparent text-white hover:bg-white/20"`
+
+Add refs for input, form, set state is editing is false. Form input element when click title is allow editing, hover when blurring
+```tsx
+const formRef = useRef<ElementRef<"form">>(null);
+const inputRef = useRef<ElementRef<"input">>(null);
+
+const [isEditing, setIsEditing] = useState(false);
+
+const enableEditing = () => {
+  setIsEditing(true);
+  setTimeout(() => {
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  })
+}
+
+const disableEditing = () => {
+  setIsEditing(false);
+};
+
+const onSubmit = (formData: FormData) => {
+  const title = formData.get("title") as string;
+  console.log("I am submitted", title);
+}
+
+if (isEditing) {
+  return (
+    <form action={onSubmit} ref={formRef} className="flex items-center gap-x-2">
+      <FormInput
+        ref={inputRef}
+        id="title"
+        onBlur={() => {}}
+        defaultValue={data.title}
+        className="text-lg font-bold px-[7px] py-1 h-7 bg-transparent focus-visible:outline-none focus-visible:ring-transparent border-none"
+      />
+    </form>
+  )
+}
+```
+Remove outline: `focus-visible:ring-offset-0`
+## Wrap board title on blur
+```tsx
+const onBlur = () => {
+  formRef.current?.requestSubmit();
+}
+```
+## Update board
+Update board title schema:
+
+**actions/update-board/schema.ts**
+```tsx
+import { z } from "zod";
+
+export const UpdateBoard = z.object({
+  title: z.string({
+    required_error: "Title is required",
+    invalid_type_error: "Title is required",
+  }).min(3, {
+    message: "Title is too short",
+  }),
+  id: z.string(),
+});
+```
+Update board title types:
+
+**actions/update-board/types.ts**
+```ts
+import { z } from "zod";
+import { Board } from "@prisma/client";
+
+import { ActionState } from "@/lib/create-safe-action";
+
+import { UpdateBoard } from "./schema";
+
+export type InputType = z.infer<typeof UpdateBoard>;
+export type ReturnType = ActionState<InputType, Board>;
+```
+
+**index.ts**
+```ts
+"use server";
+
+import { auth } from "@clerk/nextjs";
+import { revalidatePath } from "next/cache";
+
+import { db } from "@/lib/db";
+import { createSafeAction } from "@/lib/create-safe-action";
+
+import { UpdateBoard } from "./schema";
+import { InputType, ReturnType } from "./types";
+
+const handler = async (data: InputType): Promise<ReturnType> => {
+  const { userId, orgId } = auth();
+
+  if (!userId || !orgId) {
+    return {
+      error: "Unauthorized",
+    };
+  }
+
+  const { title, id } = data;
+  let board;
+
+  try {
+    board = await db.board.update({
+      where: {
+        id,
+        orgId,
+      },
+      data: {
+        title,
+      },
+    });
+  } catch (error) {
+    return {
+      error: "Failed to update."
+    }
+  }
+
+  revalidatePath(`/board/${id}`);
+  return { data: board };
+};
+
+export const updateBoard = createSafeAction(UpdateBoard, handler);
+```
+## Toast message
+```tsx
+const [title, setTitle] = useState(data.title);
+
+const { execute } = useAction(updateBoard, {
+  onSuccess: (data) => {
+    toast.success(`Board "${data.title}" updated!`);
+    setTitle(data.title);
+    disableEditing();
+  },
+  onError: (error) => {
+    toast.error(error);
+  }
+});
+```
+## Board options
+
+Let's copy and change name folder is `delete-board` and change handler when delete to redirect organization id.
+```tsx
+const handler = async (data: InputType): Promise<ReturnType> => {
+  const { userId, orgId } = auth();
+
+  if (!userId || !orgId) {
+    return {
+      error: "Unauthorized",
+    };
+  }
+
+  const { id } = data;
+  let board;
+
+  try {
+    board = await db.board.delete({
+      where: {
+        id,
+        orgId,
+      },
+    });
+  } catch (error) {
+    return {
+      error: "Failed to delete."
+    }
+  }
+
+  revalidatePath(`/organization/${orgId}`);
+  redirect(`/organization/${orgId}`);
+};
+```
+
+We will use popover UI components, using popover trigger to and more button three dots, popover content is Board actions, add close button and add Delete this board button. When delete this board, execute id, otherwise toast message error.
+```tsx
+"use client";
+
+import { toast } from "sonner";
+import { MoreHorizontal, X } from "lucide-react";
+
+import { deleteBoard } from "@/actions/delete-board";
+import { useAction } from "@/hooks/use-action";
+import { Button } from "@/components/ui/button";
+import {
+  Popover,
+  PopoverClose,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+
+interface BoardOptionsProps {
+  id: string;
+};
+
+export const BoardOptions = ({ id }: BoardOptionsProps) => {
+  const { execute, isLoading } = useAction(deleteBoard, {
+    onError: (error) => {
+      toast.error(error);
+    }
+  });
+
+  const onDelete = () => {
+    execute({ id });
+  };
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button className="h-auto w-auto p-2" variant="transparent">
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="px-0 pt-3 pb-3" 
+        side="bottom" 
+        align="start"
+      >
+        <div className="text-sm font-medium text-center text-neutral-600 pb-4">
+          Board actions
+        </div>
+        <PopoverClose>
+          <Button
+            className="h-auto w-auto p-2 absolute top-2 right-2 text-neutral-600"
+            variant="ghost"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </PopoverClose>
+        <Button
+          variant="ghost"
+          onClick={onDelete}
+          disabled={isLoading}
+          className="rounded-none w-full h-auto p-2 px-5 justify-start font-normal text-sm"
+        >
+          Delete this board
+        </Button>
+      </PopoverContent>
+    </Popover>
+  );
+};
+```
+
+[![image.png](https://i.postimg.cc/FKvLbTWJ/image.png)](https://postimg.cc/NKNFBkwg)
