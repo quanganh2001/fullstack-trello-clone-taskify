@@ -2527,3 +2527,244 @@ const lists = await db.list.findMany({
   },
 });
 ```
+Add types:
+
+**types.ts**
+```ts
+import { Card, List } from "@prisma/client";
+
+export type ListWithCards = List & { cards: Card[] };
+
+export type CardWithList = Card & { list: List };
+```
+## List Container
+Add interface, export then return `ListForm` component
+```tsx
+"use client";
+
+import { ListWithCards } from "@/types";
+import { ListForm } from "./list-form";
+
+interface ListContainerProps {
+  data: ListWithCards[];
+  boardId: string;
+};
+
+export const ListContainer = ({
+  data,
+  boardId,
+}: ListContainerProps) => {
+  return (
+    <ol>
+      <ListForm />
+      <div className="flex-shrink-0 w-1" />
+    </ol>
+  );
+};
+```
+## List Wrapper
+Add interface with children, return `li` element
+```tsx
+interface ListWrapperProps {
+  children: React.ReactNode;
+}
+
+export const ListWrapper = ({
+  children
+}: ListWrapperProps) => {
+  return (
+    <li className="shrink-0 h-full w-[272px] select-none">
+      {children}
+    </li>
+  );
+};
+```
+## List Form
+Add params using `useParams`, add form and input refs from `useRef` of React. Add state `isEditing`. If enable editing, set is true, otherwise, set is false (to disable). When press Escape, disable editing. If is editing, return `ListWrapper` component with form element include `FormInput` component, input is hidden. Add list with form submit, add button `X` from `lucide-react`. Return `ListWrapper` component with form element include Plus button add a list.
+```tsx
+"use client";
+
+import { Plus, X } from "lucide-react";
+import { useParams } from "next/navigation";
+import { useEventListener, useOnClickOutside } from "usehooks-ts";
+import { useState, useRef, ElementRef } from "react";
+
+import { Button } from "@/components/ui/button";
+import { FormInput } from "@/components/form/form-input";
+import { FormSubmit } from "@/components/form/form-submit";
+
+import { ListWrapper } from "./list-wrapper";
+
+export const ListForm = () => {
+  const params = useParams();
+
+  const formRef = useRef<ElementRef<"form">>(null);
+  const inputRef = useRef<ElementRef<"input">>(null);
+
+  const [isEditing, setIsEditing] = useState(false);
+
+  const enableEditing = () => {
+    setIsEditing(true);
+    setTimeout(() => {
+      inputRef?.current?.focus();
+    });
+  };
+
+  const disableEditing = () => {
+    setIsEditing(false);
+  };
+
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      disableEditing();
+    };
+  };
+
+  useEventListener("keydown", onKeyDown);
+  useOnClickOutside(formRef, disableEditing);
+
+  if (isEditing) {
+    return (
+      <ListWrapper>
+        <form
+          ref={formRef}
+          className="w-full p-3 rounded-md bg-white space-y-4 shadow-md"
+        >
+          <FormInput
+            ref={inputRef}
+            id="title"
+            className="text-sm px-2 py-1 h-7 font-medium border-transparent hover:border-input focus:border-input transition"
+            placeholder="Enter list title..."
+          />
+          <input
+            hidden
+            value={params.boardId}
+            name="boardId"
+          />
+          <div className="flex items-center gap-x-1">
+            <FormSubmit>
+              Add list
+            </FormSubmit>
+            <Button
+              onClick={disableEditing}
+              size="sm"
+              variant="ghost"
+            >
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
+        </form>
+      </ListWrapper>
+    );
+  };
+
+  return (
+    <ListWrapper>
+      <form
+        className="w-full p-3 rounded-md bg-white space-y-4 shadow-md"
+      >
+        <button
+          onClick={enableEditing}
+          className="w-full rounded-md bg-white/80 hover:bg-white/50 transition p-3 flex items-center font-medium text-sm"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Add a list
+        </button>
+      </form>
+    </ListWrapper>
+  )
+}
+```
+
+## Create List actions
+Copy, paste and rename action is `create-list`, same as update board action but 
+**schema.ts**
+```ts
+export const CreateList = z.object({
+  title: z.string({
+    required_error: "Title is required",
+    invalid_type_error: "Title is required",
+  }).min(3, {
+    message: "Title is too short",
+  }),
+  boardId: z.string(),
+});
+```
+**types.ts**
+```ts
+import { z } from "zod";
+import { List } from "@prisma/client";
+
+import { ActionState } from "@/lib/create-safe-action";
+
+import { CreateList } from "./schema";
+
+export type InputType = z.infer<typeof CreateList>;
+export type ReturnType = ActionState<InputType, List>;
+```
+**index.ts**
+```ts
+"use server";
+
+import { auth } from "@clerk/nextjs";
+import { revalidatePath } from "next/cache";
+
+import { db } from "@/lib/db";
+import { createSafeAction } from "@/lib/create-safe-action";
+
+import { CreateList } from "./schema";
+import { InputType, ReturnType } from "./types";
+
+const handler = async (data: InputType): Promise<ReturnType> => {
+  const { userId, orgId } = auth();
+
+  if (!userId || !orgId) {
+    return {
+      error: "Unauthorized",
+    };
+  }
+
+  const { title, boardId } = data;
+  let list;
+
+  try {
+    const board = await db.board.findUnique({
+      where: {
+        id: boardId,
+        orgId,
+      },
+    });
+
+    if (!board) {
+      return {
+        error: "Board not found",
+      };
+    }
+
+    const lastList = await db.list.findFirst({
+      where: { boardId: boardId },
+      orderBy: { order: "desc" },
+      select: { order: true },
+    });
+
+    const newOrder = lastList ? lastList.order + 1 : 1;
+
+    list = await db.list.create({
+      data: {
+        title,
+        boardId,
+        order: newOrder,
+      },
+    });
+  } catch (error) {
+    return {
+      error: "Failed to create."
+    }
+  }
+
+  revalidatePath(`/board/${boardId}`);
+  return { data: list };
+};
+
+export const createList = createSafeAction(CreateList, handler);
+```
