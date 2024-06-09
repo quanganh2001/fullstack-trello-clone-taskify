@@ -2768,3 +2768,181 @@ const handler = async (data: InputType): Promise<ReturnType> => {
 
 export const createList = createSafeAction(CreateList, handler);
 ```
+# List Header
+## Render title
+**_components/list-header.tsx**
+```tsx
+"use client";
+
+import { List } from "@prisma/client";
+
+interface ListHeaderProps {
+  data: List;
+}
+
+export const ListHeader = ({
+  data,
+}: ListHeaderProps) => {
+  return (
+    <div className="pt-2 px-2 text-sm font-semibold flex justify-between items-start gap-x-2">
+      <div className="w-full text-sm px-2.5 py-1 h-7 font-medium border-transparent">
+        {data.title}
+      </div>
+    </div>
+  );
+};
+```
+## List Item
+```tsx
+"use client";
+
+import { ListWithCards } from "@/types";
+import { ListHeader } from "./list-header";
+
+interface ListItemProps {
+  data: ListWithCards;
+  index: number;
+};
+
+export const ListItem = ({
+  data,
+  index,
+}: ListItemProps) => {
+  return (
+    <li className="shrink-0 h-full w-[272px] select-none">
+      <div className="w-full rounded-md bg-[#f1f2f4] shadow-md pb-2">
+        <ListHeader data={data} />
+      </div>
+    </li>
+  );
+};
+```
+List Header pass data, render data and number index.
+## List Container
+Add ordered data state, map list and index to `ListItem` components pass id key, index and list data.
+```tsx
+import { useEffect, useState } from "react";
+import { ListItem } from "./list-item";
+
+export const ListContainer = ({
+  data,
+  boardId,
+}: ListContainerProps) => {
+  const [orderedData, setOrderedData] = useState(data);
+
+  useEffect(() => {
+    setOrderedData(data);
+  }, [data]);
+
+  return (
+    <ol className="flex gap-x-3 h-full">
+      {orderedData.map((list, index) => {
+        return (
+          <ListItem
+            key={list.id}
+            index={index}
+            data={list}
+          />
+        )
+      })}
+      <ListForm />
+      <div className="flex-shrink-0 w-1" />
+    </ol>
+  );
+};
+```
+
+[![image.png](https://i.postimg.cc/xC8dCn2V/image.png)](https://postimg.cc/ZBkmsknw)
+## Rename list header
+Set title, editing states, form and input refs. When enable editing, set is true, set timeout when focus and select input. When disable editing, set is false. Add `useEventListener` from `usehooks-ts`
+```tsx
+const [title, setTitle] = useState(data.title);
+const [isEditing, setIsEditing] = useState(false);
+
+const formRef = useRef<ElementRef<"form">>(null);
+const inputRef = useRef<ElementRef<"input">>(null);
+
+const enableEditing = () => {
+  setIsEditing(true);
+  setTimeout(() => {
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  });
+};
+
+const disableEditing = () => {
+  setIsEditing(false);
+};
+
+const onKeyDown = (e: KeyboardEvent) => {
+  if (e.key === "Escape") {
+    formRef.current?.requestSubmit();
+  }
+};
+
+useEventListener("keydown", onKeyDown);
+```
+When is editing, add input elements and `FormInput` component. Otherwise, return title.
+```tsx
+<div className="pt-2 px-2 text-sm font-semibold flex justify-between items-start gap-x-2">
+  {isEditing ? (
+    <form className="flex-1 px-[2px]">
+      <input hidden id="id" name="id" value={data.id} />
+      <input hidden id="boardId" name="boardId" value={data.boardId} />
+      <FormInput
+        ref={inputRef}
+        onBlur={() => {}}
+        id="title"
+        placeholder="Enter list title..."
+        defaultValue={title}
+        className="text-sm px-[7px] py-1 h-7 font-medium border-transparent hover:border-input focus:border-input transition truncate bg-transparent focus:bg-white"
+      />
+    </form>
+  ): (
+    <div
+      onClick={enableEditing}
+      className="w-full text-sm px-2.5 py-1 h-7 font-medium border-transparent"
+    >
+      {title}
+    </div>
+  )}
+</div>
+```
+## Update list action
+Copy folder then rename action is `update-list`
+## Add Toast message
+When rename is success, return success message: 'Renamed to ...'. Otherwise, return error message. Executes title, id and `boardId`. When click to blur, request submit
+
+```tsx
+const { execute } = useAction(updateList, {
+  onSuccess: (data) => {
+    toast.success(`Renamed to "${data.title}"`);
+    setTitle(data.title);
+    disableEditing();
+  },
+  onError: (error) => {
+    toast.error(error);
+  }
+});
+
+const handleSubmit = (formData: FormData) => {
+  const title = formData.get("title") as string;
+  const id = formData.get("id") as string;
+  const boardId = formData.get("boardId") as string;
+
+  if (title === data.title) {
+    return disableEditing();
+  }
+
+  execute({
+    title,
+    id,
+    boardId,
+  });
+}
+
+const onBlur = () => {
+  formRef.current?.requestSubmit();
+}
+```
+[![image.png](https://i.postimg.cc/fyqKSxkT/image.png)](https://postimg.cc/D4sst4qt)
