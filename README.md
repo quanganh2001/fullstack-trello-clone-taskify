@@ -2946,3 +2946,166 @@ const onBlur = () => {
 }
 ```
 [![image.png](https://i.postimg.cc/fyqKSxkT/image.png)](https://postimg.cc/D4sst4qt)
+# List Options
+Add `ListOptions` component, including Popover have `PopoverTrigger` have three dots button. `PopoverContent` have List actions box, `PopoverClose` component have `X` button. Add form element with `FormSubmit` component.
+
+**list-options.tsx**
+```tsx
+"use client";
+
+import { List } from "@prisma/client";
+import { MoreHorizontal, X } from "lucide-react";
+
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  PopoverClose
+} from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
+import { FormSubmit } from "@/components/form/form-submit";
+
+interface ListOptionsProps {
+  data: List;
+  onAddCard: () => void;
+}
+
+export const ListOptions = ({
+  data,
+  onAddCard,
+}: ListOptionsProps) => {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button className="h-auto w-auto p-2" variant="ghost">
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="px-0 pt-3 pb-3" side="bottom" align="start">
+        <div className="text-sm font-medium text-center text-neutral-600 pb-4">
+          List actions
+        </div>
+        <PopoverClose asChild>
+          <Button className="h-auto w-auto p-2 absolute top-2 right-2 text-neutral-600" variant="ghost">
+            <X className="h-4 w-4" />
+          </Button>
+        </PopoverClose>
+        <Button
+          onClick={onAddCard}
+          className="rounded-none w-full h-auto p-2 px-5 justify-start font-normal text-sm"
+          variant="ghost"
+        >
+          Add card...
+        </Button>
+        <form>
+          <input hidden name="id" id="id" value={data.id} />
+          <input hidden name="boardId" id="boardId" value={data.boardId} />
+          <FormSubmit
+            variant="ghost"
+            className="rounded-none w-full h-auto p-2 px-5 justify-start font-normal text-sm"
+          >
+            Copy list...
+          </FormSubmit>
+        </form>
+      </PopoverContent>
+    </Popover>
+  );
+};
+```
+## Delete list
+Copy folder then rename action is `delete-list`
+## Add Toast message
+### Delete list toast message
+When click to delete, it will be notification list was deleted. Otherwise, return falied.
+```tsx
+const { execute: executeDelete } = useAction(deleteList, {
+  onSuccess: (data) => {
+    toast.success(`List "${data.title}" deleted`);
+  },
+  onError: (error) => {
+    toast.error(error);
+  }
+});
+
+const onDelete = (formData: FormData) => {
+  const id = formData.get("id") as string;
+  const boardId = formData.get("boardId") as string;
+
+  executeDelete({ id, boardId });
+};
+```
+## Create server action
+Let's copy and rename action `copy-list`
+
+**index.ts**
+```ts
+const handler = async (data: InputType): Promise<ReturnType> => {
+  const { userId, orgId } = auth();
+
+  if (!userId || !orgId) {
+    return {
+      error: "Unauthorized",
+    };
+  }
+
+  const { id, boardId } = data;
+  let list;
+
+  try {
+    const listToCopy = await db.list.findUnique({
+      where: {
+        id,
+        boardId,
+        board: {
+          orgId
+        },
+      },
+      include: {
+        cards: true,
+      },
+    });
+
+    if (!listToCopy) {
+      return { error: "List not found" };
+    }
+
+    const lastList = await db.list.findFirst({
+      where: { boardId },
+      orderBy: { order: "desc" },
+      select: { order: true },
+    });
+
+    const newOrder = lastList ? lastList.order + 1 : 1;
+
+    list = await db.list.create({
+      data: {
+        boardId: listToCopy.boardId,
+        title: `${listToCopy.title} - Copy`,
+        order: newOrder,
+        cards: {
+          createMany: {
+            data: listToCopy.cards.map((card) => ({
+              title: card.title,
+              description: card.description,
+              order: card.order,
+            })),
+          },
+        },
+      },
+      include: {
+        cards: true,
+      },
+    });
+  } catch (error) {
+    return {
+      error: "Failed to copy."
+    }
+  }
+
+  revalidatePath(`/board/${boardId}`);
+  return { data: list };
+};
+```
+Toast message for copy action is same as toast message for delete action.
+
+[![image.png](https://i.postimg.cc/R0P9ZLHb/image.png)](https://postimg.cc/d7TgWdn8)
