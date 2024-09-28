@@ -3109,3 +3109,241 @@ const handler = async (data: InputType): Promise<ReturnType> => {
 Toast message for copy action is same as toast message for delete action.
 
 [![image.png](https://i.postimg.cc/R0P9ZLHb/image.png)](https://postimg.cc/d7TgWdn8)
+# Card Form
+**Important:** There's an update to the installation process in the latest version. The `shadcn-ui` is change to `shadcn`, so instead of: `npx shadcn-ui@latest add textarea`, do this: `npx shadcn@latest add textarea`
+
+Source: https://stackoverflow.com/questions/78934468/shadcn-ui-commands-on-terminal-is-not-working
+
+## Set state editing
+```tsx
+const textareaRef = useRef<ElementRef<"textarea">>(null);
+
+const [isEditing, setIsEditing] = useState(false);
+
+const disableEditing = () => {
+  setIsEditing(false);
+}
+
+const enableEditing = () => {
+  setIsEditing(true);
+  setTimeout(() => {
+    textareaRef.current?.focus();
+  });
+}
+
+return (
+  <li className="shrink-0 h-full w-[272px] select-none">
+    <div className="w-full rounded-md bg-[#f1f2f4] shadow-md pb-2">
+      <ListHeader
+        onAddCard={enableEditing}
+        data={data}
+      />
+      <CardForm
+        listId={data.id}
+        ref={textareaRef}
+        isEditing={isEditing}
+        enableEditing={enableEditing}
+        disableEditing={disableEditing}
+      />
+    </div>
+  </li>
+);
+```
+## Add a card button
+```tsx
+"use client";
+
+import { forwardRef } from "react";
+import { Plus } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+
+interface CardFormProps {
+  listId: string;
+  enableEditing: () => void;
+  disableEditing: () => void;
+  isEditing: boolean;
+}
+
+export const CardForm = forwardRef<HTMLTextAreaElement, CardFormProps>(({
+  listId,
+  enableEditing,
+  disableEditing,
+  isEditing
+}, ref) => {
+  return (
+    <div className="pt-2 px-2">
+      <Button
+        onClick={enableEditing}
+        className="h-auto px-2 py-1.5 w-full justify-start text-muted-foreground text-sm"
+        size="sm"
+        variant="ghost"
+      >
+        <Plus className="h-4 w-4 mr-2" />
+        Add a card
+      </Button>
+    </div>
+  )
+})
+
+CardForm.displayName = "CardForm";
+```
+## Add textarea placeholder and button
+````tsx
+if (isEditing) {
+  return (
+    <form
+      className="m-1 py-0.5 px-1 space-y-4"
+    >
+      <FormTextarea
+        id="title"
+        onKeyDown={() => {}}
+        ref={ref}
+        placeholder="Enter a title for this card..."
+      />
+      <input
+        hidden
+        id="listId"
+        name="listId"
+        value={listId}
+      />
+      <div className="flex items-center gap-x-1">
+        <FormSubmit>
+          Add card
+        </FormSubmit>
+        <Button onClick={disableEditing} size="sm" variant="ghost">
+          <X className="h-5 w-5" />
+        </Button>
+      </div>
+    </form>
+  )
+}
+````
+Output:
+
+[![image.png](https://i.postimg.cc/5tgnnRny/image.png)](https://postimg.cc/2qqQ52pN)
+
+## Create card action
+Try to fetch create card:
+```ts
+try {
+  const list = await db.list.findUnique({
+    where: {
+      id: listId,
+      board: {
+        orgId,
+      },
+    },
+  });
+
+  if (!list) {
+    return {
+      error: "List not found"
+    };
+  }
+
+  const lastCard = await db.card.findFirst({
+    where: { listId },
+    orderBy: { order: "desc" },
+    select: { order: true },
+  });
+
+  const newOrder = lastCard ? lastCard.order + 1 : 1;
+
+  card = await db.card.create({
+    data: {
+      title,
+      listId,
+      order: newOrder,
+    },
+  });
+} catch (error) {
+  return {
+    error: "Failed to create."
+  }
+}
+```
+## Process create card
+```tsx
+const params = useParams();
+const formRef = useRef<ElementRef<"form">>(null);
+
+const { execute, fieldErrors } = useAction(createCard, {
+  onSuccess: (data) => {
+    toast.success(`Card "${data.title}" created`);
+    formRef.current?.reset();
+  },
+  onError: (error) => {
+    toast.error(error);
+  },
+});
+
+const onKeyDown = (e: KeyboardEvent) => {
+  if (e.key === "Escape") {
+    disableEditing();
+  }
+};
+
+useOnClickOutside(formRef, disableEditing);
+useEventListener("keydown", onKeyDown);
+
+const onTextareakeyDown: KeyboardEventHandler<HTMLTextAreaElement> = (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    formRef.current?.requestSubmit();
+  }
+};
+
+const onSubmit = (formData: FormData) => {
+  const title = formData.get("title") as string;
+  const listId = formData.get("listId") as string;
+  const boardId = params.boardId as string;
+
+  execute({ title, listId, boardId });
+};
+```
+## Render list card item
+```tsx
+"use client";
+
+import { Card } from "@prisma/client";
+
+interface CardItemProps {
+  data: Card;
+  index: number;
+};
+
+export const CardItem = ({
+  data,
+  index
+}: CardItemProps) => {
+  return (
+    <div
+      role="button"
+      className="truncate border-2 border-transparent hover:border-black py-2 px-3 text-sm bg-white rounded-md shadow-sm"
+    >
+      {data.title}
+    </div>
+  );
+};
+```
+## Render list with index
+```tsx
+<ol
+  className={cn(
+    "mx-1 px-1 py-0.5 flex flex-col gap-y-2",
+    data.cards.length > 0 ? "mt-2" : "mt-0",
+  )}
+>
+  {data.cards.map((card, index) => (
+    <CardItem
+      index={index}
+      key={card.id}
+      data={card}
+    />
+  ))}
+</ol>
+```
+Output:
+
+[![image.png](https://i.postimg.cc/V6nt6Spt/image.png)](https://postimg.cc/TL21NPR2)
